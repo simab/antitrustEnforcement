@@ -1,0 +1,326 @@
+---
+title: "Salary data wrangling"
+author: "Sima Biondi"
+date: "8/4/2021"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+# Set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(data.table)
+library(readxl)
+library(writexl)
+library(here)
+library(lubridate)
+library(scales)
+library(gghighlight)
+library(knitr)
+library(clipr)
+fig.path = here::here("figs")
+options(warn = -1)
+```
+
+```{r read data}
+judge_data = read_excel("data/Payroll data/salary_data_gov_off.xlsx", sheet = "judges")
+es_data = read_excel("data/Payroll data/salary_data_gov_off.xlsx", sheet = "es")
+president_data = read_excel("data/Payroll data/salary_data_gov_off.xlsx", sheet = "president")
+gs_data = read_excel("data/Payroll data/salary_data_gov_off.xlsx", sheet = "gs")
+
+law_data = read_excel("data/AMLaw_salary_data_combo.xlsx")
+associates_read = bind_rows(read_excel("data/NLJ250_202109301829578131.xlsx"),
+                            read_excel("data/NLJ250_202109301829450006.xlsx"),
+                            read_excel("data/NLJ250_202109301829304068.xlsx"),
+                            read_excel("data/NLJ250_202109301829101412.xlsx"))
+
+inflation_df_1913 = read_excel("data/CPI_index_u.xlsx")
+inflation_df_1913 = inflation_df_1913 %>%
+  filter(year < 1947)
+inflation_df_1947 = read.table("http://research.stlouisfed.org/fred2/data/CPIAUCSL.txt",
+             skip = 53, header = TRUE)
+
+bls_lawyer_data = read.csv("data/bls_lawyers.csv")
+
+real_gdp_per_capita_data = read_excel("data/gdp-per-capita-maddison-2020.xlsx", sheet = "data")
+
+
+#DC house data source: ACS decennial survey on housing characteristics
+dc_house_data = read.table("https://www2.census.gov/programs-surveys/decennial/tables/time-series/coh-values/values-unadj.txt", fill = T, header = F, skip = 14, nrow = 1, sep = "$")[,2:8]
+dc_house_header = read.table("https://www2.census.gov/programs-surveys/decennial/tables/time-series/coh-values/values-unadj.txt", header = F, skip = 1, nrow = 1)
+names(dc_house_data) = dc_house_header
+
+#dc_house_data_2010 = as.data.frame(read_excel("data/housing_price_2010.xlsx", sheet = "Data"))[2,2]
+#dc_house_data_x2010 = rename(data.frame(`2010` = c(dc_house_data_2010)), `2010` = X2010)
+
+#dc_house_data_2017 = data.frame(read.csv("data/QuickFacts Oct-05-2021.csv")[22,3])
+#names(dc_house_data_2017) = c("2017")
+
+#dc_house_data = bind_cols(dc_house_data_x2010, dc_house_data)
+#dc_house_data = bind_cols(dc_house_data_2017, dc_house_data)
+
+case_schiller = read_excel("data/WDXRSA.xls", skip = 10)
+
+
+```
+
+
+# Clean data
+```{r clean judge_data}
+judge_df = judge_data %>%
+  select(year, district_salary_nominal, appeals_salary_nominal,
+         chief_justice_salary_nomial, associate_justice_salary_nominal) %>%
+  complete(year = full_seq(year, period = 1)) %>%
+  fill(district_salary_nominal, appeals_salary_nominal,
+         chief_justice_salary_nomial, associate_justice_salary_nominal)
+```
+
+```{r clean es_data}
+es_df = es_data %>%
+  select(year_simp, ES_level_1_simp, ES_level_3_simp) %>%
+  filter(!is.na(year_simp)) %>%
+  complete(year_simp = full_seq(year_simp, period = 1)) %>%
+  fill(ES_level_1_simp, ES_level_3_simp) %>%
+  rename(year = year_simp)
+```
+
+```{r clean president_data}
+president_df = president_data %>%
+  filter(year > 1900) %>%
+  complete(year = full_seq(year, period = 1)) %>%
+  fill(president_salary_nominal) %>%
+  select(year, president_salary_nominal)
+
+```
+
+```{r clean gs_data}
+gs_df = gs_data %>%
+  select(year_simp, GS_15_avg_simp) %>%
+  filter(!is.na(year_simp)) %>%
+  complete(year_simp = full_seq(year_simp, period = 1)) %>%
+  fill(GS_15_avg_simp) %>%
+  rename(year = year_simp)
+```
+
+```{r clean inflation data}
+inflation_df = inflation_df_1947 %>%
+  mutate(year = year(DATE)) %>%
+  group_by(year) %>%
+  summarise(cpi = mean(VALUE)) %>%
+  bind_rows(., inflation_df_1913) %>%
+  arrange(year) 
+```
+
+```{r clean law_data}
+law_df = law_data %>%
+  rename(year = `Fiscal Year`) %>%
+  mutate(net_income_per_partner = `Net Operating Income`/`Num Eq Partners`) %>%
+  group_by(year) %>%
+  summarise(avg_net_income_per_partner = mean(net_income_per_partner), avg_CAP = mean(`CAP`)) %>%
+  add_row(year = 1947, avg_CAP = 27246, avg_net_income_per_partner = 35000) %>%
+  add_row(year = 1954, avg_CAP = 36102, avg_net_income_per_partner = 44000) %>%
+  pivot_longer(!year, names_to = "personnel_type", values_to = "salary_nominal") %>%
+  arrange(year) %>%
+  filter(personnel_type != "avg_CAP")
+```
+
+```{r clean associates data}
+associates_clean = associates_read %>%
+  filter(`NLJ250 Rank` < 101) %>%
+  group_by(`Fiscal Year`) %>%
+  summarise(first_year_low = mean(`First Year Salary Low`, na.rm = T), 
+            first_year_high = mean(`First Year Salary High`, na.rm = T)) %>%
+  rowwise() %>%
+  mutate(first_year = mean(c(first_year_low, first_year_high), na.rm = T)) %>%
+  filter(`Fiscal Year` != 2021, `Fiscal Year` != 2012) %>%
+  select(`Fiscal Year`, first_year) %>%
+  rename(year = `Fiscal Year`) %>%
+  bind_rows(c(year = 1968, first_year = mean(14000, 13500*2, 12750*2, 11750, 12500, 
+                                             12000*3, 11250, 11000))) %>%
+  ungroup()
+```
+
+
+```{r clean BLS lawyer data}
+
+bls_lawyer_df = bls_lawyer_data %>%
+  rename(year = DATE, total_comp = J4069C0A144NBEA) %>%
+  mutate(year = year(year), total_comp = total_comp*10^6)
+
+```
+
+```{r clean house data}
+
+dc_house_data_pre_90 = dc_house_data %>%
+  pivot_longer(everything(), names_to = "year", values_to = "house_price_pre_90") %>%
+  mutate(across(where(is.factor), as.character)) %>%
+  mutate(across(where(is.character), str_trim)) %>%
+  mutate(across(where(is.character), ~ gsub(",", "", .x))) %>% 
+  mutate(across(where(is.character), as.numeric)) %>%
+  complete(year = full_seq(year, period = 1)) 
+
+
+dc_2000s_house_price = dc_house_data_pre_90[dc_house_data_pre_90$year == "2000",]$house_price_pre_90
+
+base_year_val_cpi_2000 = inflation_df$cpi[inflation_df$year == 2000]
+
+dc_house_data_post_90 = case_schiller %>%
+  rename(cs_val = WDXRSA) %>%
+  mutate(house_val = cs_val * dc_2000s_house_price/100) %>%
+  mutate(year = as.double(format(observation_date, "%Y"))) %>%
+  group_by(year) %>%
+  summarise(house_val_post_90_real = mean(house_val)) %>%
+  left_join(inflation_df) %>%
+  mutate(house_val_post_90_nominal = house_val_post_90_real * cpi/base_year_val_cpi_2000)
+
+dmv_house_data = dc_house_data_pre_90 %>%
+  full_join(dc_house_data_post_90) %>%
+  mutate(house_val = case_when(!is.na(house_val_post_90_nominal) ~ house_val_post_90_nominal,
+                               T ~ house_price_pre_90)) %>%
+  select(year, house_val)
+```
+
+
+```{r clean real GDP per capita}
+real_GDP_per_capita_df = real_gdp_per_capita_data %>%
+  select(-Code, -`145446-annotations`, -Entity) %>%
+  rename(year = Year, `Real GDP per capita` = `GDP per capita` ) %>%
+  filter(year >= 1913)
+```
+
+
+# Combing dataframes
+```{r combining all data (gov+law)}
+
+gov_law_df = left_join(president_df, judge_df, by = "year") %>%
+  left_join(., es_df, by = "year") %>%
+  left_join(., gs_df, by = "year") %>%
+  left_join(., associates_clean, by = "year") %>%
+  left_join(., dmv_house_data, by = "year") %>%
+  pivot_longer(!year, names_to = "personnel_type", values_to  = "salary_nominal") %>%
+  bind_rows(law_df) %>%
+  mutate(personnel_type = case_when(personnel_type == "president_salary_nominal" ~ "President",
+                                    personnel_type == "district_salary_nominal"~"District court judge",
+                                    personnel_type == "appeals_salary_nominal" ~ "Appeals court judge",
+                                    personnel_type == 
+                                      "chief_justice_salary_nomial" ~ "Chief Justice",
+                                    personnel_type == 
+                                      "associate_justice_salary_nominal" ~ "Associate Justice",
+                                    personnel_type == "ES_level_1_simp" ~ "Federal Reserve Chair",
+                                    personnel_type == "ES_level_3_simp" ~ "FTC Chair/AAG at DOJ",
+                                    personnel_type == "GS_15_avg_simp" ~ "GS-15 staff average",
+                                    personnel_type == "avg_net_income_per_partner" ~ 
+                                                            "Avg comp per equity partner",
+                                    personnel_type == "avg_CAP" ~ 
+                                      "Average compensation for all partners", 
+                                    personnel_type == "house_val" ~ "DC median house price",
+                                    personnel_type == "first_year" ~ "Law firm associate- first year")) 
+gov_law_df %>%
+  filter(personnel_type != "DC single house price") %>%
+  ggplot(., aes(x = year, y = salary_nominal, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      ggtitle("Nominal salaries") +
+      ylab("Dollars (not adjusted)")
+
+
+
+```
+
+```{r write combo df in excel}
+
+write_xlsx(gov_law_df, "data/gov_law_salary_df.xlsx")
+
+```
+
+
+
+
+# Adjusting for inflation
+```{r adjusting for inflation_df}
+
+#set the base year to 2011 for inflation data
+base_year_val_cpi = inflation_df$cpi[inflation_df$year == 2011]
+
+inflation_df = inflation_df %>%
+  mutate(cpi_base_2011 = cpi*100/base_year_val_cpi) 
+
+inflation_df = inflation_df %>%
+  mutate(adj_factor = cpi_base_2011/base_year_val_cpi) 
+
+#adjust the salaries for inflation
+gov_law_salary_df_adjusted = gov_law_df %>%
+  full_join(., inflation_df, by = "year") %>%
+  filter(personnel_type != "District court judge" & personnel_type != "Associate Justice") %>%
+  filter(year > 1944 & year < 2019) %>%
+  mutate(salary_adj = salary_nominal /adj_factor) %>%
+  filter(!is.na(salary_adj))
+```
+
+
+```{r write adjusted df in excel}
+
+write_xlsx(gov_law_salary_df_adjusted, "data/gov_law_salary_df_inflation_adjusted.xlsx")
+
+
+```
+
+
+
+
+# Adjusting for inflation and real GDP per capita
+```{r adjusting for inflation_df and real GDP per capita}
+
+#set the base year to 2011 for inflation data
+base_year_val_cpi = inflation_df$cpi[inflation_df$year == 2011]
+
+inflation_df = inflation_df %>%
+  mutate(cpi_base_2011 = cpi*100/base_year_val_cpi) %>%
+  mutate(adj_factor = cpi_base_2011/base_year_val_cpi) 
+  
+
+#set base year to 2011
+base_year_val_rGDPpc = real_GDP_per_capita_df$`Real GDP per capita`[real_GDP_per_capita_df$year == 2011]
+real_GDP_per_capita_df = real_GDP_per_capita_df %>%
+  mutate(rGDPpc_base_2011 =  (`Real GDP per capita`)/base_year_val_rGDPpc) 
+
+#adjust the salaries for inflation and gdp per capita
+gov_law_salary_df_adjusted = gov_law_df %>%
+  full_join(., inflation_df, by = "year") %>%
+  left_join(., real_GDP_per_capita_df, by = "year") %>%
+  filter(personnel_type != "District court judge" & personnel_type != "Associate Justice") %>%
+  filter(year > 1944 & year < 2019) %>%
+  mutate(salary_adj = (salary_nominal /adj_factor)/rGDPpc_base_2011) %>%
+  filter(!is.na(salary_adj))
+```
+
+
+```{r write inflation and gdp adjusted df in excel}
+
+write_xlsx(gov_law_salary_df_adjusted, "data/gov_law_salary_df_adjusted.xlsx")
+
+```
+
+
+```{r house data price issues}
+
+gov_law_salary_df_adjusted %>%
+  filter(personnel_type == "DC median house price") %>%
+  select(-cpi:-rGDPpc_base_2011) %>%
+  write_clip("table")
+
+ # write.table(rdat, "clipboard", sep="\t", row.names=FALSE, col.names=FALSE)
+
+#ggplot(., aes(x = year, y = salary_adj)) + geom_line() + geom_point() + ylim(0, 2*10^6)
+
+gov_law_salary_df_adjusted %>%
+  filter(personnel_type == "DC median house price") %>%
+  ggplot(., aes(x = year, y = salary_nominal)) + geom_line()
+```
+
+
+
