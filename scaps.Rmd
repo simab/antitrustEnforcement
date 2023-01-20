@@ -1,0 +1,214 @@
+---
+title: "ate_scraps"
+output: html_notebook
+---
+
+#Nov 11 2021
+```{r}
+justice_per_court %>%
+  rename(justiceName = justiceName.x) %>%
+  left_join(.,justice_cartel_score) %>%
+  mutate(across(`1946`:`2012`, ~ case_when(. == 0 ~ 10^6,
+                                             T ~ .x*pro_c_perc), .names = "{col}_cf")) %>%
+  select(ends_with("_cf"), justiceName) %>%
+  mutate(across(everything(), na_if, 10^6)) %>%
+  select(`1970_cf`:`2012_cf`, justiceName) %>%
+  mutate(across(-justiceName, ~ min_rank(desc(.x)), .names = "{col}_top")) %>%
+  pivot_longer(!justiceName, names_to = "metric", values_to = "value") %>%
+  filter(value < 6) %>%
+  filter(!str_detect(metric, "_top")) %>%
+  mutate(year = as.integer(str_extract(metric, "[0-9]{4}"))) %>%
+  group_by(year) %>%
+  summarise(mean = mean(value, na.rm = T))
+
+```
+
+
+
+
+# Nov 2 2021
+```{r}
+  justice_votes %>%
+    
+  
+  select(usCite, party1, party2, partyDecisionFavored, comp_case_win_nb2b, vote_WODouglas, dir_vote_WODouglas)
+
+
+    
+    party1_comp == 1 & partyDecisionFavored == "p1" ~ 1,
+                                   party2_comp == 1 & partyDecisionFavored == "p2" ~ 1,
+                                   party1_comp == 0 & partyDecisionFavored == "p1" ~ NA,
+                                   party2_comp == 0 & partyDecisionFavored == "p2" ~ NA,
+                                   T ~ 0)) %>%
+  group_by(year) %>%
+  summarise(count = n(), mean_comp_win = mean(comp_case_win, na.rm = T)) %>%
+  filter(count > 0) %>%
+  ggplot() + geom_point(aes(x = year, y = mean_comp_win))
+  
+  
+  group_by(year) %>%
+  summarise(mean_comp_win = mean(comp_case_win, na.rm = T)) %>%
+  ggplot() + geom_line(aes(x = year, y = mean_comp_win))
+  select(partyDecisionFavored, party1_comp, party2_comp, comp_case_win) %>%
+  
+  summarize(sum = sum(parties_comp))
+  select(party2) %>%
+  table()
+
+  
+```
+
+
+# Nov 1, 2021
+```{r}
+  mutate(min = min(pro_b_perc), max = max(pro_b_perc)) %>%
+  rowwise() %>%
+  mutate(norm_pro_b_perc = (pro_b_perc-min)/(max-min)) %>%
+```
+
+
+
+# Oct 28 2021
+```{r}
+  
+justice_per_court_read %>%
+  select(voteId, dateDecision, usCite, caseName, majOpinWriter, majVotes:majority) %>%
+  distinct(justiceName, .keep_all = T)
+
+```
+
+
+# Oct 22 2021
+```{r}
+            across(starts_with("justice_"), ~ mean(.x, na.rm = T)),
+            across(starts_with("opinion_"), ~ mean(.x, na.rm = T)),
+            across(starts_with("direction_"), ~ mean(.x, na.rm = T)),
+            across(starts_with("majority_"), ~ mean(.x, na.rm = T))) 
+
+```
+
+
+# Oct 19 2021
+```{r}
+  geom_rect(aes(xmin = court_term, xmax =  dplyr::lead(court_term)))
+  geom_rect(aes(NULL, NULL, 
+                xmin = chief_term_start_and_end$start, xmax = chief_term_start_and_end$end, 
+                fill = chief_term))
+```
+
+
+# Oct 18, 2021
+```{r}
+%>%
+  mutate(`1956` = case_when(justiceName.x == "SMinton" ~ 0,
+                            justiceName.x == "CEWhittaker" ~ 0,
+                            T ~ `1956`)) %>%
+  mutate(`1958` = case_when(justiceName.x == "HHBurton" ~ 0,
+                            T ~ `1958`)) %>%
+  mutate(`1958` = case_when(justiceName.x == "HHBurton" ~ 0,
+                            T ~ `1958`))
+```
+
+
+# October 6 2021
+```{r}
+  mutate(across(c(CC_endorse, WSJ_endorse), as.factor)) %>%
+  mutate(CC_endorse = case_when(CC_endorse == "Yes" ~ 1,
+                                CC_endorse == "No" ~ 0,
+                                T ~ CC_endorse))
+
+as.factor(sc_judge$CC_endorse)[40] == "Yes"
+
+base_year_val_rGDPpc = real_GDP_per_capita_df$`Real GDP per capita`[real_GDP_per_capita_df$year == 1983]
+real_GDP_per_capita_df = real_GDP_per_capita_df %>%
+  mutate(rGDPpc_base_1983 =  (`Real GDP per capita`)/base_year_val_rGDPpc) 
+
+```
+
+
+# October 4, 2021
+```{r}
+ ~  salary_nominal*adj_factor_house/rGDPpc_base_2011))
+```
+
+# August 18, 2021
+##law
+```{r net operating income per equity parter}
+
+avg_net_income_partner = law_data %>%
+  mutate(net_income_per_partner = `Net Operating Income`/`Num Eq Partners`) %>%
+  group_by(year) %>%
+  summarise(avg_net_income_per_partner = mean(net_income_per_partner)) %>%
+  add_row(year = 1947, avg_net_income_per_partner = 27246) %>%
+  add_row(year = 1954, avg_net_income_per_partner = 36102) 
+
+avg_net_income_partner %>%
+  ggplot(., aes(x = year, y = avg_net_income_per_partner_adjusted)) + geom_point() +
+    ggtitle("Average compensation per equity partner across top firms") +
+    ylab("Dollars (not adjusted)")
+
+```
+
+```{r average compensation all partners}
+avg_CAP_df = law_data %>%
+  group_by(year) %>%
+  summarise(avg_CAP = mean(`CAP`)) %>%
+  add_row(year = 1947, avg_CAP = 35000) %>%
+  add_row(year = 1954, avg_CAP = 44000) 
+  
+
+avg_CAP_df %>%
+  ggplot(., aes(x = year, y = avg_CAP)) + geom_point() +
+      ggtitle("Average compensation per all partners across top firms") +
+      ylab("Dollars (not adjusted)")
+```
+
+```{r combo CAP and net income}
+combo_CAP_and_net_income = bind_rows(avg_net_income_partner, avg_CAP_df) %>%
+  pivot_longer(cols = starts_with("avg"), names_to = "metric", values_drop_na = T) %>%
+  mutate(metric = if_else(grepl("income", metric), 
+                       "Average compensation per equity partner", 
+                       "Average compensation for all partners"))
+
+combo_CAP_and_net_income %>%
+  ggplot(., aes(x = year, y = value)) + 
+    geom_point(aes(color = metric)) +
+    scale_color_manual(values = c("black", "blue")) +
+    ggtitle("Law firm partner compensation over time") +
+    ylab("Dollars (not adjusted)")
+```
+
+
+```{r}
+
+  mutate(adj_factor_house = cpi_base_2011/base_year_val_cpi_2018)
+
+#CPI for 2018
+base_year_val_cpi_2018 = inflation_df$cpi_base_2011[inflation_df$year == 2018]
+
+#adjust the salaries for inflation and gdp per capita
+gov_law_salary_df_adjusted = gov_law_df %>%
+  full_join(., inflation_df, by = "year") %>%
+  filter(year > 1912 & year < 2019) %>%
+  mutate(salary_adj = case_when(personnel_type != "DC single house price" 
+                                ~ (salary_nominal /adj_factor),
+                                personnel_type == "DC single house price"
+                                ~  salary_nominal*adj_factor_house)) %>%
+  filter(!is.na(salary_adj))
+```
+
+```{r}
+#adjust the salaries for inflation 
+agency_budgets %>%
+  full_join(., inflation_df, by = "year") %>%
+  filter(year > 1930 & year < 2019) %>%
+  filter(budget_id == "doj_total_amt" | 
+           budget_id == "ftc_total_amt") %>%
+  mutate(budget_allocated_amt_adj = budget_allocated_amt /adj_factor) %>%
+  filter(!is.na(budget_allocated_amt_adj)) %>%
+  ggplot(., aes(x = year, y = budget_allocated_amt_adj, 
+                group = budget_id, color = budget_id)) + geom_point() + labs(colour = "Agency") + ylab("Dollars (adjusted, 1983)") + scale_y_continuous(label = comma)
+
+```
+
+

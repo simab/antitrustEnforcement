@@ -1,0 +1,215 @@
+---
+title: "Personnel summary statistics"
+author: "Sima Biondi"
+date: "5/7/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(finalfit)
+library(gridExtra)
+```
+
+
+# Summary statistics - 
+## What this document does:
+### 1. Create new variables: length_of_tenure, age_at_appointment
+### 2. Presents the distributions of key variables: Administration_appointee, party_affiliation, Education, Type of previous position, generalized_previous_experience,   following_position, generalized_following_exp, appointment_age
+### 3. Compares previous and following positions
+### 4. Check for missing data
+
+# Set up
+```{r}
+setwd("~/Desktop/Posner/antitrust") 
+```
+
+
+## Load and clean data
+```{r} 
+df = read.csv("Part_2_v3.csv", stringsAsFactors = F) 
+df[is.na(df)] = 0
+df = df %>%
+  select(-Source, -Source2, -Source3, -Notes, -Appointment_age, -Appointment_age_rounded) #remove cols
+```
+
+
+## Create new variable: time_period, length of tenure, appointment age
+```{r}
+df = df %>%
+  mutate(time_period = ifelse(Year_started < 1976, "pre", "post")) %>%
+  mutate(length_of_tenure = ifelse(Year_ended-Year_started > 0, Year_ended-Year_started, NA)) %>%
+  mutate(age_at_appoint = ifelse(Year_started-Birth_year < 100, Year_started-Birth_year, NA)) #removing unknown DOBs from calc
+```
+
+
+## Basic summary statistics
+```{r}
+summary(select(df, -First_name, -Middle_name, -Last_name, -Suffix, -FTC_seat, -Education, -Previous_position,
+               -Generalized_previous_experience, -Following_position, -Generalized_following_experience))
+```
+
+## Summary graphics and tables
+
+### Year started, Year ended, admin appointee, party affiliation
+```{r}
+#Year started
+ggplot(df, aes(x=Year_started)) + geom_histogram(binwidth = 10) + labs(title = "Start year of appointees over time") + xlab("Year")
+
+#Year ended
+a = subset(df, Year_ended > 100)
+ggplot(a, aes(x=Year_ended)) + geom_histogram(binwidth = 10) + labs(title = "End year of term over time") + xlab("Year")
+
+#Administration appointee
+table(df$Administration_appointee)
+
+#Party_affiliation
+table(df$Party_affiliation)
+
+table(subset(df, Year_started < 1976)$Party_affiliation)
+table(subset(df, Year_started > 1975)$Party_affiliation)
+prop.table(table(df$Party_affiliation))
+
+```
+
+### Summary graphics continued: age, length of tenure, law firms mentioned
+```{r}
+# Age
+ggplot(df, aes(x = age_at_appoint)) + geom_histogram(binwidth = 10) + geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), 
+  color = "red") + labs(title = "Distribution of officials' age at time of appointment") + xlab("Age")
+ggplot(df[df$Year_started < 1976,], aes(x = age_at_appoint)) + 
+  geom_histogram(binwidth = 10) + geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), color = "blue") + 
+   labs(title = "Distribution of officials' age at time of appointment") + xlab("Age")
+ggplot(df[df$Year_started >1975,], aes(x = age_at_appoint)) + geom_histogram(binwidth = 10) + 
+  geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), color = "green") +  
+  labs(title = "Distribution of officials' age at time of appointment") + xlab("Age")
+         
+df_age_mean = df %>%
+  group_by(time_period) %>%
+  summarise(age_mean = mean(age_at_appoint, na.rm = T))
+ggplot(df, aes(x = age_at_appoint, fill = time_period)) + geom_histogram(binwidth = 5, alpha=.5, position="identity") + 
+  geom_vline(data = df_age_mean, aes(xintercept = age_mean, color = time_period), linetype = "dashed", size = 1) + 
+    labs(title = "Distribution of officials' age at time of appointment (not adjusted)") + xlab("Age") 
+
+#Adjusted for age calc
+df_age_adjusted = df %>%
+  mutate(age_at_appoint_adjusted = ifelse(time_period == "pre", age_at_appoint *1.12, age_at_appoint))
+df_age_adjusted_mean = df_age_adjusted %>%
+  group_by(time_period) %>%
+  summarise(age_adj_mean = mean(age_at_appoint_adjusted, na.rm = T))
+ggplot(df_age_adjusted, aes(x = age_at_appoint_adjusted, fill = time_period)) + geom_density(alpha = 0.3) +  
+  geom_vline(data = df_age_adjusted_mean, aes(xintercept = age_adj_mean, color = time_period), linetype = "dashed", size = 1) + 
+    labs(title = "Distribution of officials' age at time of appointment (adjusted)") + xlab("Age") 
+
+#Difference in age (not adjusted)
+mean(df$age_at_appoint, na.rm = T)
+mean(subset(df, Year_started < 1976)$age_at_appoint, na.rm = T) - mean(subset(df, Year_started > 1975)$age_at_appoint, na.rm = T)
+```
+
+```{r}
+
+#Length of tenure
+ggplot(df, aes(x = length_of_tenure)) + geom_histogram(binwidth = 5) +
+  labs(title = "Distribution of officials' length of tenure") + xlab("Length of term (in years)") 
+
+df_tenure_mean = df %>%
+  group_by(time_period) %>%
+  summarise(tenure_mean = mean(length_of_tenure, na.rm = T))
+
+ggplot(df, aes(x = length_of_tenure, fill = time_period)) + geom_histogram(binwidth = 5, alpha=.5, position="identity") +
+  geom_vline(data = df_tenure_mean, aes(xintercept = tenure_mean, color = time_period), linetype = "dashed", size = 1) +   
+  labs(title = "Distribution of officials' length of tenure") + xlab("Length of term (in years)") 
+
+
+#Law firms where officials found jobs after leaving government 
+table(df$Following_law_firms)
+```
+
+
+## Comparing previous and following positions
+
+### Calculations: altering datasets to simplifying groupings, calculating counts/percents per group, comboing and cleaning
+```{r}
+####################### simplifying groupings (reduce categories of type of job)
+df = df %>%
+  mutate(prev_position_simp = 
+           ifelse(grepl("Law firm|Industry|Private practice|Journalist", Type_of_previous_position), "Private sector", 
+                  ifelse(grepl("Government|Academia", Type_of_previous_position), "Public sector and academia", "Other"))) %>%
+  mutate(prev_position_simp = as.factor(prev_position_simp)) %>%
+  mutate(follow_position_simp = 
+           ifelse(grepl("Law firm|Industry|Private practice|Journalist", Type_of_following_position), "Private sector", 
+                  ifelse(grepl("Government|Academia", Type_of_following_position), "Public sector and academia", "Other"))) %>%
+  mutate(follow_position_simp = as.factor(follow_position_simp))
+
+####################### calculating counts/percents of each type
+previous_position_df = df %>%
+  select(prev_position_simp, time_period) %>%
+  group_by(time_period) %>%
+  count(prev_position_simp) %>%
+  mutate(percent = ifelse(time_period == "pre", n/nrow(subset(df, time_period == "pre")), 
+         n/nrow(subset(df, time_period == "post"))))
+
+following_position_df = df %>%
+  select(follow_position_simp, time_period) %>%
+  group_by(time_period) %>%
+  count(follow_position_simp) %>%
+  mutate(percent = ifelse(time_period == "pre", n/nrow(subset(df, time_period == "pre")), 
+                          n/nrow(subset(df, time_period == "post"))))
+
+####################### Set colors
+#table(df$prev_position_simp)
+sectionColors = setNames(gray.colors(3), c("Private sector", "Public sector and academia", "Other"))
+
+####################### Combine frequency tables
+freq_table_all = data_frame() %>%
+  bind_rows(previous_position_df, following_position_df) %>%
+  mutate(timing = ifelse(is.na(prev_position_simp), "Following Position", "Previous Position")) %>%
+  mutate(timing_f = factor(timing, levels = c("Previous Position", "Following Position"))) %>%
+  mutate(time_period = ifelse(grepl("pre", time_period), "Pre-1976", "Post-1975")) %>%
+  mutate(time_period_f = factor(time_period, levels = c("Pre-1976", "Post-1975"))) %>%
+  mutate(position = coalesce(prev_position_simp, follow_position_simp)) %>%
+  select(-prev_position_simp, -follow_position_simp) 
+```
+
+### Graphical representations
+```{r}
+
+# 4x4 of change in timing and time_period
+p1_all = ggplot(freq_table_all, aes(x="", y = percent, fill = position)) + 
+  geom_bar(stat = "identity", width = 1, color = "black") + coord_polar("y") + theme_void() +   scale_fill_manual(values = sectionColors)
+p1_all + facet_grid(timing_f ~ time_period_f)
+
+#previous jobs breakdown pre and post
+p1_prev = ggplot(subset(freq_table_all, timing_f == "Previous Position"), aes(x="", y = percent, fill = position)) +   
+  geom_bar(stat = "identity", width = 1, color = "black") + coord_polar("y") + theme_void() + 
+  scale_fill_manual(values = sectionColors, name="Type of position", 
+                    breaks = c("Private sector", "Public sector and academia", "Other"), 
+                    labels = c("Private sector", "Public sector and academia", "Other")) + 
+  labs(title = "Comparing the composition of officials' prior position", subtitle = "Initial position before joining government post\n", caption = "Based on data from: Wikipedia, Congress.gov, and alternate sources" )
+p1_prev + facet_grid(cols = vars(time_period_f))
+setwd("~/Desktop/Posner/antitrust/Graphs")
+ggsave("pie_chart_previous_position_across_time_period.pdf", width = 14, height = 7)
+
+
+#following jobs breakdown pre and post
+p1_follow = ggplot(subset(freq_table_all, timing_f == "Following Position"), aes(x="", y = percent, fill = position)) +   
+  geom_bar(stat = "identity", width = 1, color = "black") + coord_polar("y") + theme_void() + 
+  scale_fill_manual(values = sectionColors, name="Type of position", 
+                    breaks = c("Private sector", "Public sector and academia", "Other"), 
+                    labels = c("Private sector", "Public sector and academia", "Other")) + 
+  labs(title = "Comparing the composition of officials' following position", subtitle = "Initial position after leaving government post\n", caption = "Based on data from: Wikipedia, Congress.gov, and alternate sources" )
+p1_follow + facet_grid(cols = vars(time_period_f))
+setwd("~/Desktop/Posner/antitrust/Graphs")
+ggsave("pie_chart_following_position_across_time_period.pdf", width = 14, height = 7)
+
+```
+
+
+
+## Missing data
+```{r}
+df %>% missing_plot()
+```
