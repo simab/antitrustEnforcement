@@ -1,4 +1,3 @@
-QuestionID,RespTxt,RespPct,QuestionTxt,AntitrustDirection,QuestionNote,SubPopulation,ReleaseDate,SurveyOrg,SurveySponsor,SourceDoc,BegDate,EndDate,ExactDates,SampleDesc,SampleSize,IntMethod,StudyNote
-USGALLUP.56-566.Q022D,"Yes, should",63,Do you think the government should do anything about them (the monopolies in this country)?,pro,,,6/1/56,Gallup Organization,,Gallup Poll (AIPO),6/15/56,6/20/56,Y,National adult,2074,Face-to-face interview,Sample size is approximate.
-USGALLUP.56-566.Q022D,"No, should not",19,Do you think the government should do anything about them (the monopolies in this country)?,anti,,,6/1/56,Gallup Organization,,Gallup Poll (AIPO),6/15/56,6/20/56,Y,National adult,2074,Face-to-face interview,Sample size is approximate.
-USGALLUP.56-566.Q022D,Don't know,19,Do you think the government should do anything about them (the monopolies in this country)?,ambig,,,6/1/56,Gallup Organization,,Gallup Poll (AIPO),6/15/56,6/20/56,Y,National adult,2074,Face-to-face interview,Sample size is approximate.
+version https://git-lfs.github.com/spec/v1
+oid sha256:135d49ec5603b00187fab74714a27353bd35cbfccc8dc646bcc8969da79117f3
+size 1024
