@@ -1,0 +1,30 @@
+---
+title: "gov_tenure_survey"
+author: "Sima Biondi"
+date: "9/27/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(dplyr)
+library(tidyr)
+library(readxl)
+
+```
+
+# Randomly select 5 top firms
+```{r}
+
+set.seed(736)
+firm_sample = as.integer(runif(5, 1, 100))
+law_data = read_excel("data/AMLaw_salary_data_combo.xlsx")
+law_data %>%
+  filter(`Fiscal Year` == 2020) %>%
+  filter(`Amlaw100 Rank` %in% firm_sample)
+  
+
+```
+
+
+
