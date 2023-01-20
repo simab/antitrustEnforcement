@@ -1,0 +1,816 @@
+---
+title: "Polling analysis"
+author: "Sima Biondi"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(rvest)
+library(formatR)
+library(xlsx)
+fig.path = here::here("figs/final draft/polls")
+
+```
+
+## Load data
+
+```{r read Roper data}
+
+setwd("polls/roper polling data/overall")
+
+dir = as.array(list.files())
+dfRoper_load = data.frame()
+
+for(i in 1:length(dir)){
+  temp = read.csv(dir[i], header = T, check.names = F) %>%
+    mutate(QuestionID = as.character(QuestionID),
+           RespPct = as.character(RespPct), 
+           file = as.character(dir[i]),
+           questionType = "overall")
+  dfRoper_load = bind_rows(dfRoper_load, temp)
+}
+
+```
+
+```{r read Gallup data}
+page = read_html("https://news.gallup.com/poll/1597/Confidence-Institutions.aspx")
+
+html_tbls = page %>%
+  html_elements("table") %>%
+  html_table()
+
+```
+
+```{r read Roper business power data}
+
+setwd("polls/roper polling data/business power")
+
+dir = as.array(list.files())
+dfRoperBusiness_load = data.frame()
+
+for(i in 1:length(dir)){
+  temp = read.csv(dir[i], header = T, check.names = T) %>%
+    mutate(QuestionID = as.character(QuestionID),
+           RespPct = as.character(RespPct), 
+           file = as.character(dir[i]),
+           questionType = "powerDC")
+  dfRoperBusiness_load = bind_rows(dfRoperBusiness_load, temp)
+}
+
+
+```
+
+
+```{r read Roper large company regulation data}
+
+setwd("polls/roper polling data/controlling large companies - GE survey")
+
+dir = as.array(list.files())
+dfRoperGE_load = data.frame()
+
+for(i in 1:length(dir)){
+  temp = read.csv(dir[i], header = T, check.names = T) %>%
+    mutate(QuestionID = as.character(QuestionID),
+           RespPct = as.character(RespPct), 
+           file = as.character(dir[i]),
+           questionType = "largeCompanyRegulation")
+  dfRoperGE_load = bind_rows(dfRoperGE_load, temp)
+}
+
+
+
+dfRoperGE_load = dfRoperGE_load  %>%
+  mutate(AntitrustDirection = case_when(str_detect(RespTxt, "more") ~ "pro",
+                                        str_detect(RespTxt, "less") ~ "anti",
+                                        T ~ "ambig")) 
+
+
+```
+
+
+## Clean data
+``` {r clean Roper}
+dfRoper = dfRoper_load %>%
+  bind_rows(dfRoperBusiness_load) %>%
+  bind_rows(dfRoperGE_load) %>%
+  mutate(century = case_when(as.integer(str_extract(BegDate, "[0-9]{1,2}$")) > 22 ~ "19",
+                             T ~ "20")) %>%
+  mutate(beginDate =  as.Date(paste0(str_extract(BegDate, "[0-9]{1,2}/[0-9]{1,2}/"),
+                           century,
+                           str_extract(BegDate, "[0-9]{1,2}$")), "%m/%d/%Y")) %>%
+  mutate(endDate = as.Date(paste0(str_extract(EndDate, "[0-9]{1,2}/[0-9]{1,2}/"),
+                           century,
+                           str_extract(EndDate, "[0-9]{1,2}$")), , "%m/%d/%Y")) %>%
+  mutate(year = as.integer(format(endDate, format="%Y"))) %>%
+  mutate(RespPct = as.integer(RespPct)) %>%
+  mutate(RespPct = replace_na(RespPct, 0))
+```
+
+
+```{r clean Gallup}
+dfBigBusiness_clean = html_tbls[[5]] %>%
+  slice(1:(n() - 2)) %>%
+  filter(!row_number() == 2) %>% 
+  mutate(X1 = case_when(X1 == "" ~ "year",
+                        T ~ X1)) %>%
+  janitor::row_to_names(1) %>%
+  mutate(year = str_extract(year, "[0-9]{4}")) %>%
+  mutate(across(where(is.character), as.integer)) %>%
+  mutate(across(where(is.integer), ~replace_na(.x, 0))) 
+
+```
+
+## Prep for merge
+
+```{r Roper merge}
+dfRoper_m = dfRoper %>%
+  mutate(AntitrustDirectionCombo = case_when(str_detect(AntitrustDirection, "pro") ~ "pro",
+                                             str_detect(AntitrustDirection, "anti") ~ "anti",
+                                             T ~ AntitrustDirection)) %>%
+  group_by(QuestionTxt, AntitrustDirectionCombo, questionType, QuestionID) %>%
+  summarise(RespPct = mean(RespPct), year = first(year), SampleSize = mean(SampleSize)) 
+```
+
+```{r Gallup merge}
+dfBigBusiness_m = dfBigBusiness_clean %>%
+  mutate(anti = `Great deal` + `Quite a lot`,
+         ambig = Some + `No opinion`,
+         pro = `Very little` + `None (vol.)`,
+         QuestionID = paste("confidence in big business - Gallup", as.character(row_number()))) %>%
+  select(year, anti:pro, QuestionID) %>%
+  pivot_longer(!c(year, QuestionID),
+               names_to = "AntitrustDirectionCombo",
+               values_to = "RespPct") %>%
+  mutate(questionType = "Gallup",
+         QuestionTxt = "Now I am going to read you a list of institutions in American society. Please tell me how much confidence you, yourself, have in each one -- a great deal, quite a lot, some or very little? Big business")
+```
+
+## Analysis
+
+```{r, include=FALSE}
+dfRoper %>%
+  filter(questionType == "overall") %>%
+  select(RespPct, AntitrustDirection, year) %>%
+  ggplot() + 
+  geom_point(aes(x = year, y = RespPct, color = AntitrustDirection)) 
+
+```
+
+```{r, include=FALSE}
+dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  ggplot() + 
+  geom_point(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_smooth(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) 
+
+
+
+```
+
+```{r, include=FALSE}
+test = dfRoper %>%
+  group_by(QuestionTxt) %>%
+  summarise(first(QuestionTxt))
+
+str_detect(test$QuestionTxt, "Do you think we need new laws to control big companies")
+```
+
+```{r, include=FALSE}
+
+ggplot() + 
+  geom_point(data = filter(dfRoper_m, questionType == "overall"), 
+             aes(x = year, y = RespPct, color = AntitrustDirectionCombo))+
+  geom_smooth(data = filter(dfRoper_m, questionType == "overall"), 
+              aes(x = year, y = RespPct, color = AntitrustDirectionCombo))
+```
+
+```{r Gallup points, include=FALSE}
+ggplot() + 
+  geom_point(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_smooth(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo))
+
+```
+
+```{r Roper + Gallup, include=FALSE}
+ggplot() + 
+  geom_point(data = filter(dfRoper_m, questionType == "overall"),
+             aes(x = year, y = RespPct, color = AntitrustDirectionCombo))+
+  geom_smooth(data = filter(dfRoper_m, questionType == "overall"),
+              aes(x = year, y = RespPct, color = AntitrustDirectionCombo))+
+  geom_point(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_smooth(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo))
+
+
+
+```
+
+```{r, include=FALSE}
+ggplot() + 
+  geom_point(data =   filter(dfRoper_m, AntitrustDirectionCombo == "pro"),
+             aes(x = year, y = RespPct))+
+  geom_smooth(data =   filter(dfRoper_m, AntitrustDirectionCombo == "pro"),
+              aes(x = year, y = RespPct))+
+  geom_point(data = filter(dfBigBusiness_m, AntitrustDirectionCombo == "pro"),
+             aes(x = year, y = RespPct)) +
+  geom_smooth(data =  filter(dfBigBusiness_m, AntitrustDirectionCombo == "pro"),
+              aes(x = year, y = RespPct))
+
+
+
+```
+
+```{r, include=FALSE}
+
+dfRoper %>%
+  mutate(RespPct = as.integer(RespPct)) %>%
+  ggplot() + geom_point(aes(x = year, y = RespPct, color = AntitrustDirection))
+
+```
+
+```{r, include=FALSE}
+dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proAntiRatio = pro/(anti + pro)) %>%
+  ggplot() +
+  geom_point(aes(x = year, y = proAntiRatio)) +
+  geom_smooth(aes(x = year, y = proAntiRatio)) +
+  geom_hline(yintercept = 0.5)
+  
+  # filter(AntitrustDirectionCombo != "ambig") %>%
+  # group_by(QuestionTxt, year) %>%
+  # summarise(RespPct = )
+```
+
+```{r, include=FALSE}
+dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proAntiRatio = pro/(pro+ anti)) %>%
+  ggplot() +
+  geom_point(aes(x = year, y = proAntiRatio)) +
+  geom_smooth(aes(x = year, y = proAntiRatio), 
+              method = "loess") +
+  theme_classic() +
+  labs(x = "Year", y = "Proportion of pro-expansion opinions",
+       title = "Proportion of public in favor of expanding antitrust enforcement",
+       caption = "Source: Roper Center for Public Opinion Research")
+```
+
+
+### Linear regression 
+
+```{r unweighted, include=FALSE}
+lm_proShare = lm(data = filter(dfRoper_m, questionType == "overall" & AntitrustDirectionCombo == "pro"),
+   RespPct ~ year)
+
+summary(lm_proShare)
+```
+
+
+```{r, include=FALSE}
+
+
+lmWeight = lm(data = filter(dfRoper_m, questionType == "overall" & AntitrustDirectionCombo == "pro" & year!=1999),
+   RespPct ~ year, weights = SampleSize)
+
+summary(lmWeight)
+
+```
+```{r, include=FALSE}
+dfRoper_m %>%
+  filter(questionType == "overall" & AntitrustDirectionCombo == "pro") %>%
+  filter(year != 1999) %>%
+  ggplot(aes(x = year, y = RespPct)) +
+  geom_point(aes(x = year, y = RespPct)) +
+  geom_smooth(method = "lm", mapping = aes(weight = SampleSize))
+
+```
+
+## Report
+
+### Raw data
+```{r}
+
+ls_qs_df = bind_rows(dfRoper_m, (dfBigBusiness_m)) %>%
+  ungroup() %>%
+ # distinct(QuestionTxt, QuestionID, .keep_all = T) %>%
+ # select(QuestionTxt, questionType) %>%
+ # arrange(questionType) %>%
+  mutate(questionType = case_when(questionType == "Gallup" ~ "Public confidence in big business (Gallup series)",
+                                  questionType == "overall" ~ "Antitrust policy positions (Roper Center)",
+                                  T ~ "Corporate influence in DC (Roper Center)")) 
+
+
+# write.xlsx(filter(ls_qs_df, questionType == "Antitrust policy positions (Roper Center)"),
+#            "ATEpoll_df.xlsx", 
+#            sheetName = "Antitrust policy")
+# write.xlsx(filter(ls_qs_df, questionType ==  "Public confidence in big business (Gallup series)"),
+#            "ATEpoll_df.xlsx", 
+#            sheetName = "Confidence in business",
+#            append = T)
+# write.xlsx(filter(ls_qs_df, questionType == "Corporate influence in DC (Roper Center)"),
+#            "ATEpoll_df.xlsx", 
+#            sheetName = "DC influence", 
+#            append = T)
+
+ 
+
+```
+
+
+
+#### Df
+```{r}
+
+```
+
+
+#### List of questions
+```{r}
+
+ls_qs_df = bind_rows(dfRoper_m, (dfBigBusiness_m)) %>%
+  ungroup() %>%
+  distinct(QuestionTxt, QuestionID, .keep_all = T) %>%
+ # select(QuestionTxt, questionType) %>%
+  arrange(questionType) %>%
+  mutate(questionType = case_when(questionType == "Gallup" ~ "Public confidence in big business (Gallup series)",
+                                  questionType == "overall" ~ "Antitrust policy positions (Roper Center)",
+                                  T ~ "Corporate influence in DC (Roper Center)")) 
+
+# 
+# write.xlsx(filter(ls_qs_df, questionType == "Antitrust policy positions (Roper Center)"),
+#            "List_polling_questions.xlsx", 
+#            sheetName = "Antitrust policy")
+# write.xlsx(filter(ls_qs_df, questionType ==  "Public confidence in big business (Gallup series)"),
+#            "List_polling_questions.xlsx", 
+#            sheetName = "Confidence in business",
+#            append = T)
+# write.xlsx(filter(ls_qs_df, questionType == "Corporate influence in DC (Roper Center)"),
+#            "List_polling_questions.xlsx", 
+#            sheetName = "DC influence", 
+#            append = T)
+
+ 
+
+```
+
+##### Antitrust policy
+```{r}
+options(width = 60)
+ls_qs_df$overall
+```
+
+##### Public confidence in big business (Gallup series)
+```{r}
+ls_qs_df$Gallup[[1]][1]
+```
+
+
+##### Corporate influence in DC
+```{r}
+ls_qs_df$powerDC
+```
+
+
+
+#### Roper Center - antitrust expansion
+\
+```{r}
+
+dfRoper_m %>%
+  filter(questionType == "overall" & AntitrustDirectionCombo != "ambig") %>%
+  mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "pro" ~ "Pro",
+                                             AntitrustDirectionCombo == "anti" ~ "Against",
+                                             T ~ "Ambiguous")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() +
+  theme_classic() +
+  scale_color_grey(start = 0, end = 0.5) + 
+  labs(x = "Year", y = "% of survey respondents",
+       color = "Position on expanding antitrust policy",
+       title = "Public support for expanding antitrust policy", 
+       caption = "Source: Roper Center for Public Opinion Research")+
+  theme(legend.position = "bottom")
+  
+```
+
+
+#### Gallup - confidence in big business
+\
+```{r}
+
+dfBigBusiness_m %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+   mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "anti" ~ "High to moderate",
+                                             AntitrustDirectionCombo == "pro" ~ "Little to none",
+                                             T ~ "Ambiguous")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() + 
+  theme_classic() +
+    scale_color_grey(start = 0, end = 0.5) + 
+  labs(x = "Year", y = "% of survey respondents",
+       color = "Level of confidence",
+       title = "Public confidence in big business", 
+       caption = "Source: Gallup- Confidence in Institutions")+
+  theme(legend.position = "bottom")
+  
+```
+
+
+#### Roper Center- power of business in DC
+\
+```{r}
+dfRoper_m %>%
+  filter(questionType == "powerDC") %>%
+  mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "pro" ~ "Too much",
+                                             AntitrustDirectionCombo == "anti" ~ "Too little",
+                                             T ~ "No opinion")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() + theme_classic()  + scale_color_grey(end = 0.6) + 
+  labs(x = "Year", y = "% of survey respondents", 
+       title = "Public opinion on big companies' level of power and influence in DC", 
+       color = "Response",
+       caption = "Source: Roper Center")
+
+
+```
+
+
+### Antitrust opinions over time
+#### Graph
+
+```{r}
+dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proAntiRatio = pro/(pro+ anti)) %>%
+  ggplot() +
+  geom_point(aes(x = year, y = proAntiRatio)) +
+  geom_smooth(aes(x = year, y = proAntiRatio), 
+              method = "loess") +
+  theme_classic() +
+  labs(x = "Year", y = "Proportion of pro-expansion opinions",
+       title = "Proportion of survey respondents in favor of expanding antitrust\nenforcement",
+       caption = "Source: Roper Center for Public Opinion Research")
+
+ggsave(path = fig.path, "proportion_pro_AE_loess.png")
+
+
+```
+
+
+#### Linear regression
+
+```{r unweighted line}
+
+dfRoper_lm = dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proportionPro = pro/(pro + anti)) 
+
+
+lm_proShare = lm(data = dfRoper_lm,
+   proportionPro ~ year)
+
+summary(lm_proShare)
+```
+
+```{r}
+dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proAntiRatio = pro/(pro+ anti)) %>%
+  ggplot() +
+  geom_point(aes(x = year, y = proAntiRatio)) +
+  geom_smooth(aes(x = year, y = proAntiRatio), 
+              method = "lm") +
+  theme_classic() +
+  labs(x = "Year", y = "Proportion of pro-expansion opinions",
+       title = "Proportion of public in favor of expanding antitrust enforcement",
+       caption = "Source: Roper Center for Public Opinion Research")
+
+ggsave(path = fig.path, "proportion_pro_AE_lm.png")
+
+```
+
+
+
+
+
+
+### Confidence in big business as an insitution and the public's opinion about business's power
+
+#### Confidence in big business
+```{r}
+
+dfBigBusiness_m %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+   mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "anti" ~ "High to moderate",
+                                             AntitrustDirectionCombo == "pro" ~ "Little to none",
+                                             T ~ "Ambiguous")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() + theme_classic() + geom_smooth(method = "lm") +
+    scale_color_grey(start = 0, end = 0.5) + 
+  labs(x = "Year", y = "% of survey respondents",
+       color = "Level of confidence",
+       title = "Public confidence in big business", 
+       caption = "Source: Gallup- Confidence in Institutions")+
+  theme(legend.position = "bottom")
+
+
+ggsave(path = fig.path, "public_confidence_business_lm.png")
+
+  
+```
+
+```{r}
+dfBigBusiness_m %>%
+  filter(year == 1981 | year  == 1983)
+```
+
+
+```{r}
+
+lm_proShareBigBusinessGallup = lm(data = filter(dfBigBusiness_m, AntitrustDirectionCombo == "anti"),
+   RespPct ~ year)
+
+summary(lm_proShareBigBusinessGallup)
+
+```
+
+
+```{r Gallup line}
+
+dfBigBusiness_m %>%
+     mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "anti" ~ "High to moderate",
+                                             AntitrustDirectionCombo == "pro" ~ "Little to none",
+                                             T ~ "No opinion or unclear")) %>%
+
+ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) + 
+  geom_point() + geom_smooth() + 
+#  geom_point(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+ # geom_smooth(data = dfBigBusiness_m, aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+      scale_color_grey(start = 0, end = 0.5) + 
+  labs(x = "Year", y = "% of survey respondents",
+       color = "Level of confidence",
+       title = "Public confidence in big business", 
+       caption = "Source: Gallup- Confidence in Institutions")+
+  theme(legend.position = "bottom") + theme_classic()
+  
+
+```
+```{r}
+
+dfBigBusiness_m %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+  group_by(year, AntitrustDirectionCombo) %>%
+  summarise(RespPct = mean(RespPct), .groups = "keep") %>%
+  pivot_wider(names_from = "AntitrustDirectionCombo", values_from = "RespPct") %>%
+  mutate(proportion = (anti)/((pro) + (anti))) %>%
+  ggplot(aes(x = year, y = proportion)) +
+  geom_point() + theme_classic() + geom_smooth(method = "loess") +
+    scale_color_grey(start = 0, end = 0.5) + 
+  labs(x = "Year", y = "% of survey respondents",
+       title = "Public confidence in big business",
+       subtitle = "Proportion of survey respondents with high to moderate confidence in big business as a\n proportion of opininated respondents",
+       caption = "Source: Gallup- Confidence in Institutions")
+  
+```
+
+
+### Antitrust opinions, trust in business and business's power in DC
+```{r}
+
+dfRoper_m %>%
+  filter(AntitrustDirectionCombo == "pro") %>%
+  bind_rows(filter(mutate(dfBigBusiness_m, questionType = "Gallup"),
+                   AntitrustDirectionCombo == "pro")) %>%
+  mutate(questionType= case_when(questionType == "Gallup" ~ "Low to no confidence in big business",
+                                 questionType == "overall" ~ "Pro expanding antitrust enforcement",
+                                 T ~ "Big companies have too much power in DC")) %>%
+  ggplot(aes(x = year, y = RespPct, color = questionType)) +
+  geom_point() + geom_smooth() + theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_color_grey(start = 0, end = 0.7) + 
+  guides(color=guide_legend(nrow=2, byrow=F)) +
+  labs(x = "Year", y = "% of survey respondents who responded affirmatively",
+       title = "Public opinion on expanding antitrust enforcement, confidence\nin big business, and idea of power in DC",
+      # subtitle = ",
+      color = "Response",
+      caption = "Source: Roper Center and Gallup- Confidence in Institutions")
+
+
+
+
+```
+
+
+```{r, include=F}
+
+dfRoper_m %>%
+  bind_rows(mutate(dfBigBusiness_m, questionType = "Gallup")) %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+  pivot_wider(names_from = "AntitrustDirectionCombo", 
+              values_from = RespPct,
+              values_fn = mean) %>%
+  mutate(proportion = pro/(pro+anti)) %>%
+  mutate(questionType = case_when(questionType == "Gallup" ~ "Confidence in big business",
+                                  questionType == "overall" ~ "Antitrust policy",
+                                  T~ "Big business' power in DC")) %>%
+  ggplot(aes(x = year, y = proportion, color = questionType)) +
+  geom_point() + geom_smooth() + theme_classic() +
+  theme(legend.position = "bottom") + 
+  scale_color_grey(start = 0, end = 0.7) + 
+ # guides(color=guide_legend(nrow=2, byrow=F)) +
+  labs(x = "Year", y = "% of survey respondents who responded affirmatively",
+       title = "Proportion of public in favor of expanding antitrust enforcement, confidence\nin big business, and idea of power in DC",
+      # subtitle = ",
+      color = "",
+      caption = "Source: Roper Center and Gallup- Confidence in Institutions")
+
+
+ggsave(path = fig.path, "all_data.png")
+
+```
+
+
+
+```{r, include=F}
+
+dfRoper_m %>%
+  bind_rows(mutate(dfBigBusiness_m, questionType = "Gallup")) %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+  mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "pro" ~ "Pro-enforcement or \nanti-business",
+                                             AntitrustDirectionCombo == "anti" ~ "Anti-enforcement or \npro-business",
+                                             T ~ "Unclear or\nno opinion")) %>%
+  mutate(questionType = case_when(questionType == "Gallup" ~ "Confidence in big business",
+                                  questionType == "overall" ~ "Antitrust policy",
+                                  T~ "Big business' power in DC")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() + geom_smooth()+ facet_wrap(~questionType, scales = "free_x") +
+
+    geom_point() + geom_smooth() + theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_color_grey(end = 0.6) + 
+  labs(x = "Year", y = "% of survey respondents",
+       title = "Public opinion on antitrust policy and big business's influence",
+      # subtitle = ",
+      color = "Response",
+      caption = "Source: Roper Center and Gallup- Confidence in Institutions")
+
+
+ggsave(path = fig.path, "all_data_facet.png")
+
+
+```
+
+
+```{r, include=F}
+
+dfRoper_m %>%
+  bind_rows(mutate(dfBigBusiness_m, questionType = "Gallup")) %>%
+  mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "pro" ~ "Pro-\nenforcement",
+                                             AntitrustDirectionCombo == "anti" ~ "Anti-\nenforcement",
+                                             T ~ "Unclear or\nno opinion")) %>%
+  mutate(questionType = case_when(questionType == "Gallup" ~ "Confidence in big business",
+                                  questionType == "overall" ~ "Antitrust policy",
+                                  T~ "Big business' power in DC")) %>%
+  ggplot(aes(x = year, y = RespPct)) +
+  geom_point() + geom_smooth()+ facet_grid(AntitrustDirectionCombo ~ questionType) +
+    geom_point() + geom_smooth() + theme_classic() +
+  theme(legend.position = "bottom") +
+  scale_color_grey() + 
+  labs(x = "Year", y = "% of survey respondents",
+       title = "Public opinion on expanding antitrust enforcement, confidence\nin big business, and idea of power in DC",
+      # subtitle = ",
+      color = "Type of question",
+      caption = "Source: Roper Center and Gallup- Confidence in Institutions")
+
+
+
+
+```
+
+```{r, include=F}
+dfRoper_m %>%
+  filter(questionType == "powerDC" & AntitrustDirectionCombo != "ambig") %>%
+  bind_rows(dfBigBusiness_m) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo)) +
+  geom_point() + geom_smooth()
+```
+
+### Correlation analysis
+```{r}
+
+dfRoper_m %>%
+  filter(questionType == "largeCompanyRegulation") %>%
+  bind_rows(dfBigBusiness_m) %>%
+  filter(year >= 1973 & year < 1983) %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+  mutate(questionType = ifelse(questionType == "Gallup", 
+                               "Little to no confidence in big business",
+                               "Supports greater goverment regulation of large companies"),
+         AntitrustDirectionCombo = ifelse(AntitrustDirectionCombo == "pro",
+                                          "Yes", "No")) %>%
+  ggplot(aes(x = year, y = RespPct, color = AntitrustDirectionCombo,
+             shape = questionType)) + geom_point() + geom_smooth(method = "lm") + 
+  labs(x = "Year",
+       y = "Respondent percentage",
+       title = "Reponses to different questions",
+       color = "Response",
+       shape = "Polling question")
+
+
+ggsave(path = fig.path, "correlation_fig.png")
+
+
+```
+
+
+```{r}
+
+
+test = dfRoper_m %>%
+  filter(questionType == "largeCompanyRegulation") %>%
+  bind_rows(dfBigBusiness_m) %>%
+    filter(year >= 1973 & year < 1983) %>%
+  group_by(AntitrustDirectionCombo, year, questionType) %>%
+  summarise(questionType = first(questionType),
+            AntitrustDirectionCombo = first(AntitrustDirectionCombo),
+            year = first(year),
+            RespPct = mean(RespPct)) %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+  ungroup %>%
+  select(questionType, AntitrustDirectionCombo, RespPct, year) %>%
+ # arrange(year, AntitrustDirectionCombo) %>%
+  pivot_wider(names_from = questionType,
+              values_from = RespPct)
+
+
+cor.test(test[test$AntitrustDirectionCombo == "pro",]$largeCompanyRegulation, 
+         test[test$AntitrustDirectionCombo == "pro",]$Gallup)
+
+
+cor.test(test[test$AntitrustDirectionCombo == "anti",]$largeCompanyRegulation, 
+         test[test$AntitrustDirectionCombo == "anti",]$Gallup)
+
+```
+
+## Flourish figures
+```{r fig 1}
+
+bigBusinessTrust = dfBigBusiness_m %>%
+  filter(AntitrustDirectionCombo != "ambig") %>%
+   mutate(AntitrustDirectionCombo = case_when(AntitrustDirectionCombo == "anti" ~ "High to moderate",
+                                             AntitrustDirectionCombo == "pro" ~ "Little to none",
+                                             T ~ "Ambiguous")) %>%
+  group_by(year, AntitrustDirectionCombo) %>%
+  summarise(year = first(year), RespPct = mean(RespPct),
+            AntitrustDirectionCombo = first(AntitrustDirectionCombo)) %>%
+  ungroup()
+
+setwd("data/final figures")
+write.xlsx(bigBusinessTrust, "1_bigBusinessTrust.xlsx")
+```
+
+
+```{r fig 2: size and influence of major corp Gallup}
+# Source: https://news.gallup.com/file/poll/188753/Satisfaction_with_Corporations_and_Regulations%20_160120.pdf; https://news.gallup.com/poll/188747/majority-americans-dissatisfied-corporate-influence.aspx
+
+corpInfluence = data.frame(year = c(2001:2008, 2011:2016),
+           total_satisfied = c(48, 50, 43, 38, 38, 35, 39, 35, 29, 30, 35, 35, 36, 35),
+           total_dissatisfied = c(48, 47, 54, 61, 59, 62, 58, 61, 67, 64, 61, 63, 59, 63)
+)
+
+
+setwd("data/final figures")
+write.xlsx(corpInfluence, "2_corpInfluence.xlsx")
+```
+
+
+
+
+```{r fig 3 roper polls}
+roperPolls = dfRoper_m %>%
+  filter(questionType == "overall") %>%
+  pivot_wider(names_from = AntitrustDirectionCombo, values_from = RespPct) %>%
+  mutate(proAntiRatio = pro/(pro+ anti)) %>%
+  select(year, proAntiRatio)%>%
+  ungroup()
+
+setwd("data/final figures")
+write.xlsx(roperPolls, "3_roperPolls.xlsx")
+
+```
+
+

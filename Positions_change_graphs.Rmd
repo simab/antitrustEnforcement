@@ -1,0 +1,257 @@
+---
+title: "Antitrust enforcement"
+author: "Sima Biondi"
+date: "5/3/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(finalfit)
+
+
+```
+
+#Set up
+```{r}
+setwd("~/Desktop/Posner/antitrust") 
+getwd()
+```
+# First draft of position changes
+## Load Table 1
+```{r}
+df_diffs_profs= read.csv("diff_positions_comp.csv")
+head(df_diffs_profs)
+df_diffs_profs_1 =  df_diffs_profs %>% 
+  gather(time_period, diff,  Diff_pre_76:Diff_post_75)
+head(df_diffs_profs_1)
+```
+
+### Difference graph including both time periods
+```{r}
+p1 = ggplot(data=df_diffs_profs_1, aes(x=top, y= diff, fill = time_period)) +
+  geom_bar(stat="identity", position=position_dodge()) + 
+  xlab("Type of position") + ylab("Difference (%) in number of officials employed") + 
+  ggtitle("Difference in compositions of high-ranking antitrust officials") + 
+  scale_fill_discrete(name="Time period", labels= c("Post-1975", "Pre-1976"))
+
+pdf("diff_graph_FL.pdf")
+print(p1)
+dev.off()
+```
+
+# Second draft of position changes
+
+## Load whole data set
+```{r} 
+#move the data set so if you want to run again change the working directory
+df = read.csv("Old versions of data/Part_2_v1.csv")
+head(df)
+```
+
+## Create datasets of previous positions: remove unnecessary vars, split into 2 separate dfs 
+```{r}
+df_alt_pre76_prev = data.frame(Type_of_prev_position = "Alternate", n = 4)
+df_pre76_previous = df %>%
+  select(Year_started, Type_of_prev_position, Type_of_following_position) %>%
+  filter(Year_started < 1976) %>%
+  count(Type_of_prev_position) %>%
+  filter(n >3 | Type_of_prev_position == "Academia") %>%
+  bind_rows(df_alt_pre76_prev) %>%
+  mutate(percent = n/sum(df_pre76_previous$n), time_period = "pre_76")
+
+df_alt_post75_prev = data.frame(Type_of_prev_position = "Alternate", n = 2)
+df_post75_prev = df %>%
+  select(Year_started, Type_of_prev_position, Type_of_following_position) %>%
+  filter(Year_started > 1975) %>%
+  count(Type_of_prev_position) %>%
+  filter(n > 2 | Type_of_prev_position == "Private practice") %>%
+  bind_rows(df_alt_post75_prev) %>%
+  mutate(percent = n/sum(df_post75_prev$n), time_period = "post_75")
+
+prev_position_df = rbind(df_pre76_previous, df_post75_prev)
+
+```
+
+
+## Create datasets of future positions: remove unnecessary vars, split into 2 separate dfs 
+```{r}
+df_alt_pre76_future = data.frame(Type_of_following_position = "Alternate", n = 22)
+df_pre76_future = df %>%
+  select(Year_started, Type_of_prev_position, Type_of_following_position) %>%
+  filter(Year_started < 1976) %>%
+  count(Type_of_following_position) %>%
+  filter(Type_of_following_position == "Academia" | Type_of_following_position == "Government" | Type_of_following_position == "Industry" | Type_of_following_position == "Law firm" | Type_of_following_position == "Private practice") %>%
+  bind_rows(df_alt_pre76_future) %>%
+  mutate(percent = n/sum(df_pre76_future$n), time_period = "pre_76")
+
+df_alt_post75_future = data.frame(Type_of_following_position = c("Private practice", "Alternate"), n = c(0,9))
+df_post75_future = df %>%
+  select(Year_started, Type_of_prev_position, Type_of_following_position) %>%
+  filter(Year_started > 1975) %>%
+  count(Type_of_following_position) %>%
+  filter(Type_of_following_position == "Academia" | Type_of_following_position == "Government" | Type_of_following_position == "Industry" | Type_of_following_position == "Law firm") %>%
+  bind_rows(df_alt_post75_future) %>%
+  mutate(percent = n/sum(df_post75_future$n), time_period = "post_75")
+
+future_position_df = rbind(df_pre76_future, df_post75_future)
+
+```
+
+
+## Create graphs
+```{r}
+
+p_previous_positions = ggplot(data = prev_position_df, aes(x =Type_of_prev_position, y= percent, fill = time_period)) + geom_bar(stat="identity", position=position_dodge()) +
+  xlab("Type of position") + ylab("% of officials employed") +   
+  ggtitle("Composition of primary position before joining") + 
+  scale_fill_discrete(name="Time period", labels= c("Post-1975", "Pre-1976"))
+
+p_future_positions = ggplot(data = future_position_df, aes(x = Type_of_following_position, y= percent, fill = time_period)) + geom_bar(stat="identity", position=position_dodge()) +
+  xlab("Type of position") + ylab("% of officials employed") +   
+  ggtitle("Composition of primary position after leaving") + 
+  scale_fill_discrete(name="Time period", labels= c("Post-1975", "Pre-1976"))
+
+
+```
+
+## Creating 1 image of previous and future employment
+```{r}
+
+
+ 
+pdf("diff_graph_FL_v2.pdf")
+print(p_previous_positions)
+print(p_future_positions)
+dev.off()
+
+
+```
+
+
+
+
+
+# Summary statistics - 
+## What I want to do:
+### 1. Create new variables: length_of_tenure 
+### 2. Distributions of key variables: 
+####    Administration_appointee, party_affiliation, Education, Type of previous position, 
+####    generalized_previous_experience (turn into 5 categorical variables?),
+####    Following_position, generalized_following_exp, appointment_age
+### 3. Check for missing data
+
+## Load and clean data
+```{r}
+df = read.csv("Part_2_v3.csv")
+df[is.na(df)] = 0
+df = df %>%
+  select(-Source, -Source2, -Source3, -Notes, -Appointment_age, -Appointment_age_rounded) #remove cols
+head(df)
+
+```
+
+## Create new variable: time_period, length of tenure, appointment age
+```{r}
+df = df %>%
+  mutate(time_period = ifelse(Year_started < 1976, "pre", "post")) %>%
+  mutate(length_of_tenure = ifelse(Year_ended-Year_started > 0, Year_ended-Year_started, NA)) %>%
+  mutate(age_at_appoint = ifelse(Year_started-Birth_year < 100, Year_started-Birth_year, NA)) #removing unknown DOBs from calc
+```
+
+
+## Summary statistics
+```{r}
+summary(select(df, -First_name, -Middle_name, -Last_name, -Suffix, -FTC_seat, -Education, -Previous_position,
+               -Generalized_previous_experience, -Following_position, -Generalized_following_experience))
+```
+
+## Summary graphics (Year started, Year ended, admin appointee, party affiliation)
+```{r}
+
+#Year started
+ggplot(df, aes(x=Year_started)) + geom_histogram(binwidth = 10)
+
+#Year ended
+ggplot(df, aes(x=Year_ended)) + geom_histogram(binwidth = 10)
+
+#Administration appointee
+table(df$Administration_appointee)
+
+#Party_affiliation
+table(df$Party_affiliation)
+table(subset(df, Year_started < 1976)$Party_affiliation)
+table(subset(df, Year_started > 1975)$Party_affiliation)
+prop.table(table(df$Party_affiliation))
+
+```
+## Summary graphics continued: education, previous, following employment
+```{r}
+
+
+#Education
+
+df_sum_edu = df %>%
+  select(starts_with("Education")) %>%
+  select(-Education) %>%
+  summarise_all(list(mean = "mean")) %>%
+  pivot_longer(cols = starts_with("Education"))
+
+ggplot(df_sum_edu, aes(x = value, color = name, fill = name)) + geom_histogram(alpha=0.6, binwidth = 5)
+
+t1 = table(df$Education_law, df$Education_LLB, df$Education_JD)
+ftable(t1)
+
+ as.data.frame(prop.table(table(df$time_period, df$Education_law)))
+
+
+count(df, 'Education_law', 'Education_JD')
+
+ggplot(a, aes(x=Var1, y = Freq)) + geom_bar(stat = "identity")
+
+
+
+ls(df)
+head(df)
+```
+
+
+
+## Summary graphics continued: age, length of tenure, law firms mentioned
+```{r}
+# Age
+ggplot(df, aes(x = age_at_appoint)) + geom_histogram(binwidth = 10) + geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), 
+  color = "red")
+ggplot(df[df$Year_started < 1976,], aes(x = age_at_appoint)) + geom_histogram(binwidth = 10) + geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), 
+  color = "blue")
+ggplot(df[df$Year_started >1975,], aes(x = age_at_appoint)) + geom_histogram(binwidth = 10) + geom_vline(aes(xintercept = mean(age_at_appoint, na.rm = T)), 
+  color = "green")
+
+mean(subset(df, Year_started < 1976)$age_at_appoint*1, na.rm = T) #might want to consider adjusting for shorter lifespans prior to 70s
+mean(subset(df, Year_started > 1975)$age_at_appoint, na.rm = T)
+
+#Length of tenure
+ggplot(df, aes(x = length_of_tenure)) + geom_histogram(binwidth = 5)
+ggplot(df[df$Year_started < 1976,], aes(x = length_of_tenure)) + geom_histogram(binwidth = 5) + geom_vline(aes(xintercept = mean(length_of_tenure, na.rm = T)), color = "blue")
+ggplot(df[df$Year_started > 1975,], aes(x = length_of_tenure)) + geom_histogram(binwidth = 5) + geom_vline(aes(xintercept = mean(length_of_tenure, na.rm = T)), color = "green")
+
+#Law firms mentioned
+table(df$Following_law_firms)
+```
+
+
+## Missing data
+```{r}
+df %>% missing_plot()
+```
+
+
+
+## Future ideas
+```{r}
+table(df$Party_affiliation, df$length_of_tenure)
+```
+
