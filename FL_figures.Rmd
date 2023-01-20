@@ -1,0 +1,75 @@
+---
+title: "Recreating FL figures"
+author: "Sima Biondi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(xlsx)
+library(janitor)
+library(stringr)
+fig.path = here::here("figs/final draft/FL")
+
+```
+
+```{r Figure 4 - Presidential speeches and mentions of antitrust/monopoly}
+setwd("data")
+
+presidentialSpeeches = read.xlsx("Speeches + Party Platform - Data.xlsx",
+                                 sheetName = "Total Speeches + Party P",
+                                 rowIndex = c(11:26),
+                                 colIndex = c(2:4),
+                                 header = T) %>%
+  rename(President = `NA.`) %>%
+  mutate(rowNumber = 16- row_number()) %>%
+  arrange(rowNumber)
+
+setwd("final figures")
+
+write.xlsx(presidentialSpeeches, "4_presidentialSpeeches.xlsx")
+```
+
+```{r Figure 5 - Party platforms and mentions of antitrust/monopoly}
+setwd("data")
+
+partyPlatforms = read.xlsx("Speeches + Party Platform - Data.xlsx",
+                                 sheetName = "Total Speeches + Party P",
+                                 rowIndex = c(28:51),
+                                 colIndex = c(2:6),
+                                 header = T) %>%
+  rename(election = `NA.`) %>%
+  mutate(rowNumber = 23- row_number()) %>%
+  mutate(Label = paste(str_extract(election, "[0-9]{4}"), " ", Label)) %>%
+  arrange(rowNumber)
+
+setwd("final figures")
+
+write.xlsx(partyPlatforms, "5_partyPlatforms.xlsx")
+```
+
+```{r Figure 6 - Supreme Court nomination hearings}
+setwd("data")
+
+sctHearings = read.xlsx("Supreme Court Chart.xlsx",
+                                 sheetName = "Main Chart",
+                                 rowIndex = c(1:45),
+                                 colIndex = c(1, 18),
+                                 header = T) %>%
+  rename(justiceName = `Last.Name..First.Name`) %>%
+  mutate(lastName = ifelse(!str_detect(justiceName, "Roberts"), 
+           str_remove(str_extract(justiceName, "^[A-z].*?\\,"), "\\,"),
+           ifelse(str_detect(justiceName, "Owen"), "Roberts (Owen)", "Roberts (John)")))
+
+setwd("final figures")
+
+write.xlsx(sctHearings, "6_sctHearings.xlsx")
+```
+
+```{r}
+sctHearings 
+```
+
