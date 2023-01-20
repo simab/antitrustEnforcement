@@ -1,0 +1,265 @@
+---
+title: "ATE salary data figures"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+date: "8/27/2021"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(gghighlight)
+library(readxl)
+library(dplyr)
+library(scales)
+
+fig.path = here::here("figs/salaries")
+
+```
+
+
+```{r read data}
+df = read_excel("data/gov_law_salary_df_adjusted.xlsx")
+df_inflation = read_excel("data/gov_law_salary_df_inflation_adjusted.xlsx")
+```
+
+
+
+
+# Compensation over time with salaries adjusted for inflation (dot plot, line)
+
+```{r graphs (inflation only combo)}
+df_inflation %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      ggtitle("Compensation over time (adjusted for inflation)") +
+      ylab("Dollars (adjusted, 2011)") +
+      scale_y_continuous(label = comma)  +
+      labs(colour = "Position") 
+
+ggsave(path = fig.path, "salaries_inflation_scatter.png")
+
+
+df_inflation %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      geom_line() +
+      ggtitle("Compensation over time (adjusted for inflation)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      labs(colour = "Position") 
+
+ggsave(path = fig.path, "salaries_inflation_line.png")
+
+```
+
+
+# Compensation over time with salaries adjusted for inflation, without President (dot plot, line)
+
+```{r graphs (inflation only combo and without President)}
+df_inflation %>%
+  filter(personnel_type != "President") %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      ggtitle("Compensation over time (adjusted for inflation)") +
+      ylab("Dollars (adjusted, 2011)") +
+      scale_y_continuous(label = comma)  +
+      labs(colour = "Position") 
+ggsave(path = fig.path, "salaries_inflation_without_pres_scatter.png")
+
+
+df_inflation_declutter = df_inflation %>%
+  filter(personnel_type != "President" & personnel_type != "Chief Justice" &
+           personnel_type != "Federal Reserve Chair") 
+
+  
+df_inflation_declutter %>%
+  ggplot() +
+    geom_line(data = filter(df_inflation_declutter, !(personnel_type == "DC median house price" & year < 1987)), 
+              aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+    geom_point(data = filter(df_inflation_declutter, !(personnel_type == "DC median house price" & year < 1987)), 
+              aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type),
+              size = 0.25) +
+    geom_point(data = filter(df_inflation, personnel_type == "DC median house price" & year < 1987), 
+               aes(x = year, y = salary_adj, group = personnel_type), size = 0.25, color = "yellow4") +
+    ggtitle("Compensation over time (adjusted for inflation)") +
+    scale_y_continuous(label = label_number(suffix = " M", scale = 1e-6),
+                       name = "Dollars (adjusted, 2011)") +
+    labs(colour = "Position") + theme_minimal() +
+    theme(legend.position = "bottom")
+
+ggsave(path = fig.path, "salaries_inflation_without_pres_line.png", 
+       width = 12, height = 6)
+
+```
+
+
+# Compensation over time with salaries adjusted for inflation (faceted, all positions)
+```{r graphs facet with president (inflation only)}
+df_inflation %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = factor(personnel_type))) +
+      geom_point(size = 0.25) + 
+      gghighlight(min(salary_adj) > 0,  use_direct_label = FALSE)+ 
+      theme_minimal() +
+      facet_wrap(~ personnel_type) +
+      ggtitle("Compensation over time (adjusted for inflation)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      theme(legend.position = "none")
+
+ggsave(path = fig.path, "salaries_inflation_inflation_faceted.png")
+
+```
+
+
+
+# Compensation over time with salaries adjusted for inflation and per capita GDP (dot, line)
+
+```{r graphs (combo)}
+df %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      ylab("Dollars (adjusted, 2011)") +
+      scale_y_continuous(label = comma)  +
+      labs(colour = "Position") 
+
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_scatter.png")
+
+
+df %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      geom_line() +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      labs(colour = "Position") 
+
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_line.png")
+
+```
+
+# Compensation over time with salaries adjusted for inflation and per capita GDP, without President (dot, line)
+
+```{r graphs (combo and without President)}
+df %>%
+  filter(personnel_type != "President") %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      ylab("Dollars (adjusted, 2011)") +
+      scale_y_continuous(label = comma)  +
+      labs(colour = "Position")
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_without_pres_scatter.png")
+
+
+df %>%
+  filter(personnel_type != "President" & personnel_type != "Appeals court judge" & 
+            personnel_type != "Federal Reserve Chair" &
+            personnel_type != "Chief Justice") %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+      geom_point(size = 0.25) +
+      geom_line() +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      scale_y_continuous(labels = label_number(suffix = " M", scale = 1e-6), name = "Dollars (adjusted, 2011)") +
+      labs(colour = "Position") + theme_minimal() +
+      theme(legend.position = "bottom")
+
+
+
+df_declutter = df %>%
+  filter(personnel_type != "President" & 
+           personnel_type != "Federal Reserve Chair" &
+           personnel_type != "Chief Justice")
+  
+df_declutter %>%
+  ggplot() +
+    geom_line(data = filter(df_declutter, !(personnel_type == "DC median house price" & year < 1987)), 
+              aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type)) +
+    geom_point(data = filter(df_declutter, !(personnel_type == "DC median house price" & year < 1987)), 
+              aes(x = year, y = salary_adj, group = personnel_type, color = personnel_type),
+              size = 0.25) +
+    geom_point(data = filter(df, personnel_type == "DC median house price" & year < 1987), 
+               aes(x = year, y = salary_adj, group = personnel_type), size = 0.25, color = "yellow4") +
+      ggtitle("Compensation over time \n(adjusted for inflation and real GDP per capita growth)") + 
+      scale_y_continuous(label = label_number(suffix = " M", scale = 1e-6),
+                         name = "Dollars (inflation and real GDP \nper capita adjusted, 2011)") +
+      labs(colour = "Position", y = "Year") + theme_minimal() +
+      theme(legend.position = "bottom")
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_without_pres_line.png",
+       width = 12, height = 6)
+
+
+```
+
+
+# Compensation over time with salaries adjusted for inflation and per capita GDP (faceted, all positions)
+```{r graphs facet with president}
+df %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = factor(personnel_type))) +
+      geom_point(size = 0.25) + 
+      gghighlight(min(salary_adj) > 0,  use_direct_label = FALSE)+ 
+      theme_minimal() +
+      facet_wrap(~ personnel_type) +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      theme(legend.position = "none")
+
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_faceted.png")
+
+```
+
+# Compensation over time with salaries adjusted for inflation and per capita GDP (faceted, without President)
+
+```{r graphs facet without president}
+df %>%
+  filter(personnel_type != "President") %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = factor(personnel_type))) +
+      geom_point(size = 0.25) + 
+      gghighlight(min(salary_adj) > 0, use_direct_label = FALSE) + 
+      theme_minimal() +
+      facet_wrap(~ personnel_type) +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      theme(legend.position = "none")
+
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_without_pres_faceted.png")
+
+
+```
+
+
+# Compensation over time with salaries adjusted for inflation and per capita GDP (starting in 1940)
+
+```{r graph facet starting in 1940}
+df %>%
+  filter(year > 1939) %>%
+  ggplot(., aes(x = year, y = salary_adj, group = personnel_type, color = factor(personnel_type))) +
+      geom_point(size = 0.25) + 
+      gghighlight(min(salary_adj) > 0, use_direct_label = FALSE) + 
+      theme_minimal() +
+      facet_wrap(~ personnel_type) +
+      ggtitle("Compensation over time (adjusted for inflation and real GDP per capita)") +
+      scale_y_continuous(label = comma, name = "Dollars (adjusted, 2011)") +
+      theme(legend.position = "none", panel.spacing.x = unit(4, "mm"))
+
+ggsave(path = fig.path, "salaries_inflation_rGDPpc_start_1940_faceted.png")
+
+
+```
+# Flourish figure
+```{r}
+
+
+personnelSalaries = df_inflation_declutter %>%
+  select(year, personnel_type, salary_adj) %>%
+  pivot_wider(names_from = personnel_type, values_from =  salary_adj, values_fn = mean)
+
+setwd("data/final figures")  
+write_excel_csv(personnelSalaries, "19_personnelSalaries.xlsx")
+
+
+```
+
+
+
