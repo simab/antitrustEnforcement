@@ -1,0 +1,391 @@
+---
+title: "ATE project - data tables"
+author: "Sima Biondi"
+date: "4/7/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = F, message = F)
+options(warn = -1)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(finalfit)
+library(readxl)
+library(writexl)
+library(forcats)
+library(stringr)
+library(kableExtra)
+library(lemon)
+library(flextable)
+library(usethis)
+library(readr)
+library(markdown)
+```
+
+```{r test}
+#rmarkdown::render("previous_positions.Rmd", "html", params = params)
+
+#source('previous_positions.R')
+
+source(knitr::purl("previous_positions.Rmd", quiet=TRUE))
+#source(knitr::purl("sct_ate_analysis.Rmd", quiet=TRUE))
+
+
+```
+
+## Nominations tables
+### Nomination data split by president
+
+```{r }
+noms_by_pres_tbl %>%
+  flextable() %>%
+  autofit() %>%
+  fit_to_width(5.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(2, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 2) %>%
+  flextable::vline(part = "all", j = 4) %>%
+  flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+
+
+```
+
+\newpage
+
+
+### Nomination data split by type of position and president
+```{r}
+noms_by_pres_and_pos %>%
+  flextable() %>%
+  autofit() %>%
+  fit_to_width(5.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(3, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 3) %>%
+  flextable::vline(part = "all", j = 5) %>%
+  flextable::vline(part = "all", j = 8) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+```
+
+
+
+### Nomination data split by type of position
+```{r}
+noms_by_position %>%
+  flextable() %>%
+  autofit() %>%
+  fit_to_width(5.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(2, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 2) %>%
+  flextable::vline(part = "all", j = 4) %>%
+  flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+```
+
+### Nomination data split by decade
+```{r}
+noms_by_decade %>%
+  flextable() %>%
+    autofit() %>%
+  fit_to_width(5.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(2, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 2) %>%
+  flextable::vline(part = "all", j = 4) %>%
+  flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+  
+```
+### Nomination data split by party in control of Senate
+```{r}
+noms_by_partyControl %>%
+  flextable() %>%
+  autofit() %>%
+  fit_to_width(5.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(2, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 2) %>%
+  flextable::vline(part = "all", j = 4) %>%
+  flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+```
+
+### Nomination data split by era and party in control of Senate
+```{r}
+noms_by_era_partyControl %>%
+  flextable() %>%
+    autofit() %>%
+  fit_to_width(6.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Duration of nomination hearings (in minutes)", 
+                            "Substantive antitrust discussions?",
+                            "Substantive attitudes toward enforcement"),
+                 colwidths = c(3, 2, 3, 3)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+  flextable::vline(part = "all", j = 3) %>%
+  flextable::vline(part = "all", j = 5) %>%
+  flextable::vline(part = "all", j = 8) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+  
+```
+
+
+
+
+
+
+
+
+
+## SCT data analysis tables
+
+
+
+```{r read}
+sc_judge_read = read_excel("data/Supreme Court Chart.xlsx", sheet = "Business friendliness")
+
+bf_scores_read = read_csv("data/Business2020_sb1.csv")
+
+
+# ------ Datasets to create antitrust case dataset
+#additional_cases_antitrust_read = read_csv("data/additional_cases_antitrust_sc_changed.csv")
+#brannon_ginsburg_df_read = read_excel("data/brannon_ginsburg_data.xlsx")
+
+```
+
+```{r clean SC judges Excel}
+sc_judge = sc_judge_read %>%
+  mutate(year_oath = format(`Date of Oath`, "%Y")) %>%
+  mutate(across(c(CC_endorse, WSJ_endorse),  na_if, "Unavailable")) %>%
+  mutate(era = case_when(year_oath > 1975 ~ "Low enforcement",
+                         T ~ "High enforcement")) %>%
+  mutate(across(.cols = ends_with("endorse"), .fns = ~ case_when(str_detect(., "y") ~ 1, 
+                                                                 T ~ 0))) %>%
+  mutate(name_edit = `Last Name, First Name`) %>%
+  mutate(last_name = str_extract(name_edit, "^[a-zA-Z]*")) %>%
+  mutate(row_num = 1:n()) %>%
+  mutate(initials = str_extract_all(name_edit, "[A-Z]")[row_num]) %>%
+  mutate(middle_initial = as.character(purrr::map(initials, 3))) %>%
+  mutate(first_initial = as.character(purrr::map(initials, 2))) %>%
+  mutate(across(middle_initial:first_initial, ~ replace(., . == "NULL", NA))) %>%
+  mutate(name_final = case_when(is.na(middle_initial) ~ paste(first_initial, last_name, sep = ""),
+                                T ~ paste(first_initial, middle_initial, last_name, sep = ""))) %>%
+  mutate(name_final = case_when(name_edit == "O'Connor, Sandra Day" ~ "SDOConnor",
+                                name_edit == "Harlan, John Marshall" ~ "JHarlan2",
+                                name_edit == "Hughes, Charles Evans" ~ "CEHughes2",
+                                T ~ name_final)) %>%
+  rename(justiceName = name_final)
+
+```
+
+```{r BF and BF_NYT scores from Epstein data}
+
+justice_bf_scores  = bf_scores_read %>%
+  filter(term > 1951) %>%
+  filter(BusinessLitigant == "1. business is Petitioner OR respondent") %>%
+  group_by(justiceName, JVoteForBusiness) %>%
+  summarise(votes = n()) %>%
+  filter(!is.na(JVoteForBusiness)) %>%
+  pivot_wider(names_from = JVoteForBusiness, values_from = votes) %>%
+  mutate(total_votes = `j vote against business` + `j vote for business`,
+         score = round(`j vote for business`/(`j vote against business` + `j vote for business`), 3)) %>%
+  mutate(score_type = "bf") %>%
+  rename(`pro-enforcement` = `j vote against business`,
+         `anti-enforcement` = `j vote for business`) %>%
+  filter(justiceName %in% sc_judge$justiceName) 
+
+justice_bf_nyt_scores = bf_scores_read %>%
+    filter(term > 1951) %>%
+  filter(BusinessLitigant == "1. business is Petitioner OR respondent" &
+           nytSalience == 1) %>%
+  group_by(justiceName, JVoteForBusiness) %>%
+  summarise(votes = n()) %>%
+  filter(!is.na(JVoteForBusiness)) %>%
+  pivot_wider(names_from = JVoteForBusiness, values_from = votes) %>%
+    replace(is.na(.), 0) %>%
+  mutate(total_votes = `j vote against business` + `j vote for business`,
+         score = round(`j vote for business`/(`j vote against business` + `j vote for business`), 3)) %>%
+  mutate(score_type = "bf_nyt") %>%
+  rename(`pro-enforcement` = `j vote against business`,
+         `anti-enforcement` = `j vote for business`) %>%
+  filter(justiceName %in% sc_judge$justiceName) 
+
+```
+
+
+
+### Summary mean of overall business friendliness score (bf) and business friendliness score of business-related cases appearing in the NYT (nyt)
+
+### Inclusive of all cases:
+```{r}
+
+t_test_bf_scores = bind_rows(justice_bf_scores,justice_bf_nyt_scores) %>%
+  left_join(select(sc_judge, Party, justiceName)) %>%
+  select(Party, score, score_type) %>%
+  group_by(Party, score_type) %>%
+  summarise(val = list(score)) %>%
+  pivot_wider(names_from = Party, values_from = val) %>%
+  group_by(score_type) %>%
+  mutate(p_value = round(t.test(unlist(D), unlist(R))$p.value, 2),
+         t_value = round(t.test(unlist(D), unlist(R))$statistic, 2),
+         D_mean = round(mean(unlist(D), na.rm = T), 2),
+         D_sd = round(sd(unlist(D), na.rm = T), 2),
+         R_mean = round(mean(unlist(R)), 2),
+         R_sd = round(sd(unlist(R)), 2),
+         df = round(t.test(unlist(D), unlist(R))$parameter, 2),      
+         CI_lower = round(t.test(unlist(D), unlist(R))$conf.int[[1]], 2),
+         CI_upper = round(t.test(unlist(D), unlist(R))$conf.int[[2]], 2),
+         meanDiff = R_mean-D_mean) %>%
+  select(score_type, D_mean, D_sd, R_mean, R_sd,
+         t_value, df, p_value, CI_lower, CI_upper) %>%
+  mutate(score_type = ifelse(score_type == "bf", "Business-friendliness", 
+                             "Business-friendliness (NYT cases)")) %>%
+  rename(`Type of score` = score_type,
+         `Mean (D)` = D_mean,
+         `SD (D)` = D_sd,
+         `Mean (R)` = R_mean,
+         `SD (R)` = R_sd,
+         `T` = t_value,
+         `Significance` = p_value,
+         `Lower` = CI_lower,
+         `Upper` = CI_upper) 
+
+t_test_bf_scores %>%
+  flextable() %>%
+  autofit() %>%
+  fit_to_width(6.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "Democrats", 
+                            "Republicans",
+                            "T-test",
+                            "Confidence interval"),
+                 colwidths = c(1, 2, 2, 3, 2)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+ # flextable::vline(part = "all", j = 2) %>%
+  #flextable::vline(part = "all", j = 4) %>%
+  #flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+```
+
+
+
+### Grouped by era:
+
+High enforcement: 1945-1975.
+Low enforcement: 1976-2019.
+
+```{r}
+
+t_test_bf_scores_era =  bind_rows(justice_bf_scores,justice_bf_nyt_scores) %>%
+  left_join(select(sc_judge, era, justiceName)) %>%
+  
+  select(era, score, score_type, justiceName) %>%  
+  group_by(era, score_type) %>%
+  summarise(val = list(score)) %>%
+  pivot_wider(names_from = "era", values_from = "val") %>%
+  group_by(score_type) %>%
+    mutate(p_value = round(t.test(unlist(`High enforcement`), 
+                                  unlist(`Low enforcement`))$p.value, 2),
+         t_value = round(t.test(unlist(`High enforcement`), 
+                                unlist(`Low enforcement`))$statistic, 2),
+         highEnforcement_mean = round(mean(unlist(`High enforcement`), na.rm = T), 2),
+         highEnforcement_sd = round(sd(unlist(`High enforcement`), na.rm = T), 2),
+         lowEnforcement_mean = round(mean(unlist(`Low enforcement`)), 2),
+         lowEnforcement_sd = round(sd(unlist(`Low enforcement`)), 2),
+         df = round(t.test(unlist(`High enforcement`), 
+                           unlist(`Low enforcement`))$parameter, 2),      
+         CI_lower = round(t.test(unlist(`High enforcement`), 
+                                 unlist(`Low enforcement`))$conf.int[[1]], 2),
+         CI_upper = round(t.test(unlist(`High enforcement`), 
+                                 unlist(`Low enforcement`))$conf.int[[2]], 2),
+         meanDiff = lowEnforcement_mean-highEnforcement_mean) %>%
+  select(score_type, 
+         highEnforcement_mean, highEnforcement_sd, lowEnforcement_mean, lowEnforcement_sd,
+         t_value, df, p_value, CI_lower, CI_upper) %>%
+  mutate(score_type = ifelse(score_type == "bf", "Business-friendliness", 
+                              "Business-friendliness (NYT cases)")) %>%
+  rename(`Type of score` = score_type,
+         `Mean (high)` = highEnforcement_mean,
+         `SD (high)` = highEnforcement_sd,
+         `Mean (low)` = lowEnforcement_mean,
+         `SD (low)` = lowEnforcement_sd,
+         `T` = t_value,
+         `Significance` = p_value,
+         `Lower` = CI_lower,
+         `Upper` = CI_upper) 
+
+t_test_bf_scores_era %>%
+   flextable() %>%
+  autofit() %>%
+  fit_to_width(6.5) %>%
+  add_header_row(top = T,
+                 values = c(" ",
+                            "High enforcement", 
+                            "Low enforcement",
+                            "T-test",
+                            "Confidence interval"),
+                 colwidths = c(1, 2, 2, 3, 2)) %>%
+  theme_booktabs() %>%
+  flextable::align(., align = "center", part = "all") %>%
+  flextable::font(fontname = "Times New Roman", part = "all") %>%
+  fontsize(i = 1, size = 10, part = "header") %>%   
+ # flextable::vline(part = "all", j = 2) %>%
+  #flextable::vline(part = "all", j = 4) %>%
+  #flextable::vline(part = "all", j = 7) %>%
+  flextable::italic(i = 1, italic = TRUE, part = "header") 
+```
+
+
